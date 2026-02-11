@@ -329,13 +329,23 @@
         // Audio buffers (loaded via Web Audio API for manipulation)
         const soundBuffers = {};
         const soundUrls = {
-            laugh: 'sounds/laugh.mp3',
+            laugh2: 'sounds/laugh2.wav',
+            laugh3: 'sounds/laugh3.mp3',
+            laugh4: 'sounds/laugh4.wav',
+            laugh5: 'sounds/laugh5.wav',
+            laugh6: 'sounds/laugh6.wav',
             applause: 'sounds/applause.mp3',
             aww: 'sounds/aww.mp3',
             ooh: 'sounds/ooh.mp3',
             gasp: 'sounds/gasp.mp3',
             boo: 'sounds/boo.mp3'
         };
+
+        // Sound variants (for alternating between different clips)
+        const soundVariants = {
+            laugh: ['laugh2', 'laugh3', 'laugh4', 'laugh5', 'laugh6']
+        };
+        let lastVariantIndex = {}; // Track last played variant per sound type
 
         // State
         let audioContext;
@@ -428,9 +438,33 @@
             return source;
         }
 
+        // Get the actual sound key to play (handles variants)
+        function getSoundKey(soundType) {
+            const variants = soundVariants[soundType];
+            if (!variants || variants.length === 0) {
+                return soundType; // No variants, use directly
+            }
+            
+            // Pick a different variant than last time
+            const lastIndex = lastVariantIndex[soundType] ?? -1;
+            let availableIndices = variants.map((_, i) => i).filter(i => i !== lastIndex);
+            
+            // If only one variant, allow repeat
+            if (availableIndices.length === 0) {
+                availableIndices = [0];
+            }
+            
+            // Pick random from available
+            const newIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)];
+            lastVariantIndex[soundType] = newIndex;
+            
+            return variants[newIndex];
+        }
+
         // Play sound with randomization and optional crossfade looping
         function playSound(minDuration = null) {
-            const buffer = soundBuffers[selectedSound];
+            const soundKey = getSoundKey(selectedSound);
+            const buffer = soundBuffers[soundKey];
             if (!buffer || !audioContext) {
                 // Fallback: try to init and retry
                 initAudio().then(() => playSound(minDuration));

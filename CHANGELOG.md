@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.0] - 2026-02-11
+
+### Added
+- **5 different laugh track variants** (laugh2-laugh6)
+  - Alternates between clips to avoid repetition
+  - Never plays the same clip twice in a row
+- Sound variant system for future expansion
+
+### Changed
+- Replaced single laugh.mp3 with higher quality laugh tracks
+
 ## [1.2.0] - 2026-02-11
 
 ### Added
