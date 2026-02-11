@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Laugh Track - Sitcom Your Life! 😂</title>
+    <meta name="description" content="Plays a laugh track automatically when you stop talking. Perfect for presentations, podcasts, or just making yourself laugh!">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, sans-serif;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #ff6b6b 0%, #feca57 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: white;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .subtitle {
+            color: rgba(255,255,255,0.9);
+            font-size: 1.1rem;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        }
+
+        /* Mic visualization */
+        .mic-container {
+            width: 150px;
+            height: 150px;
+            margin: 0 auto 30px;
+            position: relative;
+        }
+
+        .mic-icon {
+            font-size: 80px;
+            line-height: 150px;
+            transition: transform 0.1s;
+        }
+
+        .mic-icon.active {
+            animation: pulse 0.5s ease infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .volume-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 120px;
+            height: 120px;
+            border: 4px solid #ff6b6b;
+            border-radius: 50%;
+            opacity: 0;
+            transition: all 0.2s;
+        }
+
+        .volume-ring.active {
+            width: 160px;
+            height: 160px;
+            opacity: 0.5;
+        }
+
+        /* Status */
+        .status {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 30px;
+            padding: 15px;
+            border-radius: 10px;
+            transition: all 0.3s;
+        }
+
+        .status.listening {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.silent {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status.laughing {
+            background: #ff6b6b;
+            color: white;
+            animation: shake 0.5s ease infinite;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        .status.off {
+            background: #f8f9fa;
+            color: #6c757d;
+        }
+
+        /* Controls */
+        .start-btn {
+            width: 100%;
+            padding: 18px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 20px;
+        }
+
+        .start-btn.start {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a5a);
+            color: white;
+        }
+
+        .start-btn.stop {
+            background: #6c757d;
+            color: white;
+        }
+
+        .start-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        /* Settings */
+        .settings {
+            text-align: left;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .setting-label {
+            font-size: 0.95rem;
+            color: #555;
+        }
+
+        .setting-control select,
+        .setting-control input[type="range"] {
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+        }
+
+        input[type="range"] {
+            width: 100px;
+        }
+
+        /* Sound type buttons */
+        .sound-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .sound-btn {
+            padding: 12px 8px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .sound-btn:hover {
+            border-color: #ff6b6b;
+        }
+
+        .sound-btn.active {
+            border-color: #ff6b6b;
+            background: #ff6b6b;
+            color: white;
+        }
+
+        /* Laugh counter */
+        .laugh-count {
+            margin-top: 20px;
+            font-size: 0.9rem;
+            color: #888;
+        }
+
+        .laugh-count strong {
+            color: #ff6b6b;
+            font-size: 1.2rem;
+        }
+
+        /* Manual trigger */
+        .manual-btn {
+            margin-top: 15px;
+            padding: 12px 25px;
+            background: #feca57;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .manual-btn:hover {
+            transform: scale(1.05);
+        }
+
+        footer {
+            margin-top: 30px;
+            color: rgba(255,255,255,0.7);
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>😂 Auto Laugh Track</h1>
+        <p class="subtitle">Sitcom your life! Plays laughs when you pause.</p>
+
+        <div class="card">
+            <div class="mic-container">
+                <div class="volume-ring" id="volume-ring"></div>
+                <div class="mic-icon" id="mic-icon">🎤</div>
+            </div>
+
+            <div id="status" class="status off">
+                Click Start to Begin
+            </div>
+
+            <button id="start-btn" class="start-btn start">
+                🎬 Start Recording
+            </button>
+
+            <div class="settings">
+                <div class="setting-row">
+                    <span class="setting-label">Pause before laugh:</span>
+                    <div class="setting-control">
+                        <select id="delay-select">
+                            <option value="500">0.5 sec</option>
+                            <option value="1000" selected>1 sec</option>
+                            <option value="1500">1.5 sec</option>
+                            <option value="2000">2 sec</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="setting-row">
+                    <span class="setting-label">Sound type:</span>
+                </div>
+                <div class="sound-buttons">
+                    <button class="sound-btn active" data-sound="laugh">😂 Laugh</button>
+                    <button class="sound-btn" data-sound="applause">👏 Applause</button>
+                    <button class="sound-btn" data-sound="aww">🥹 Awww</button>
+                    <button class="sound-btn" data-sound="ooh">😮 Oooh</button>
+                    <button class="sound-btn" data-sound="gasp">😱 Gasp</button>
+                    <button class="sound-btn" data-sound="boo">👎 Boo</button>
+                </div>
+
+                <div class="setting-row" style="margin-top:15px">
+                    <span class="setting-label">Volume:</span>
+                    <div class="setting-control">
+                        <input type="range" id="volume" min="0" max="100" value="70">
+                    </div>
+                </div>
+            </div>
+
+            <button class="manual-btn" id="manual-btn">
+                🔊 Play Sound Now
+            </button>
+
+            <div class="laugh-count">
+                Laughs played: <strong id="laugh-count">0</strong>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        Made with 😂 by Nero | Works best in Chrome
+    </footer>
+
+    <script>
+        // Audio context and sounds
+        let audioContext;
+        let isListening = false;
+        let silenceTimer = null;
+        let laughCount = 0;
+        let selectedSound = 'laugh';
+
+        const statusEl = document.getElementById('status');
+        const startBtn = document.getElementById('start-btn');
+        const micIcon = document.getElementById('mic-icon');
+        const volumeRing = document.getElementById('volume-ring');
+        const delaySelect = document.getElementById('delay-select');
+        const volumeSlider = document.getElementById('volume');
+        const laughCountEl = document.getElementById('laugh-count');
+        const manualBtn = document.getElementById('manual-btn');
+
+        // Sound URLs (using freesound.org / Web Audio synthesis)
+        // In production, you'd host these yourself
+        const sounds = {
+            laugh: null,
+            applause: null,
+            aww: null,
+            ooh: null,
+            gasp: null,
+            boo: null
+        };
+
+        // Generate synthetic sounds since we can't load external audio easily
+        function createLaughSound(ctx) {
+            const duration = 2;
+            const sampleRate = ctx.sampleRate;
+            const buffer = ctx.createBuffer(1, duration * sampleRate, sampleRate);
+            const data = buffer.getChannelData(0);
+            
+            // Generate "ha ha ha" rhythm
+            for (let i = 0; i < data.length; i++) {
+                const t = i / sampleRate;
+                const haFreq = 3; // 3 "ha"s per second
+                const envelope = Math.sin(t * haFreq * Math.PI) * Math.max(0, 1 - t/duration);
+                const noise = (Math.random() * 2 - 1) * 0.3;
+                const tone = Math.sin(t * 400 * Math.PI * 2) * 0.2;
+                data[i] = (noise + tone) * envelope * envelope;
+            }
+            
+            return buffer;
+        }
+
+        function createApplauseSound(ctx) {
+            const duration = 3;
+            const sampleRate = ctx.sampleRate;
+            const buffer = ctx.createBuffer(1, duration * sampleRate, sampleRate);
+            const data = buffer.getChannelData(0);
+            
+            for (let i = 0; i < data.length; i++) {
+                const t = i / sampleRate;
+                const envelope = Math.min(1, t * 3) * Math.max(0, 1 - t/duration);
+                const noise = (Math.random() * 2 - 1);
+                // Filter-like effect
+                data[i] = noise * envelope * 0.4;
+            }
+            
+            return buffer;
+        }
+
+        function createAwwSound(ctx) {
+            const duration = 1.5;
+            const sampleRate = ctx.sampleRate;
+            const buffer = ctx.createBuffer(1, duration * sampleRate, sampleRate);
+            const data = buffer.getChannelData(0);
+            
+            for (let i = 0; i < data.length; i++) {
+                const t = i / sampleRate;
+                const envelope = Math.max(0, 1 - t/duration);
+                const freq = 300 + Math.sin(t * 2) * 50; // Slight wobble
+                data[i] = Math.sin(t * freq * Math.PI * 2) * envelope * 0.3;
+            }
+            
+            return buffer;
+        }
+
+        function createOohSound(ctx) {
+            const duration = 1.5;
+            const sampleRate = ctx.sampleRate;
+            const buffer = ctx.createBuffer(1, duration * sampleRate, sampleRate);
+            const data = buffer.getChannelData(0);
+            
+            for (let i = 0; i < data.length; i++) {
+                const t = i / sampleRate;
+                const envelope = Math.max(0, 1 - t/duration);
+                const freq = 200 + t * 200; // Rising pitch
+                data[i] = Math.sin(t * freq * Math.PI * 2) * envelope * 0.3;
+            }
+            
+            return buffer;
+        }
+
+        function createGaspSound(ctx) {
+            const duration = 0.8;
+            const sampleRate = ctx.sampleRate;
+            const buffer = ctx.createBuffer(1, duration * sampleRate, sampleRate);
+            const data = buffer.getChannelData(0);
+            
+            for (let i = 0; i < data.length; i++) {
+                const t = i / sampleRate;
+                const envelope = Math.exp(-t * 5);
+                const noise = (Math.random() * 2 - 1);
+                data[i] = noise * envelope * 0.5;
+            }
+            
+            return buffer;
+        }
+
+        function createBooSound(ctx) {
+            const duration = 2;
+            const sampleRate = ctx.sampleRate;
+            const buffer = ctx.createBuffer(1, duration * sampleRate, sampleRate);
+            const data = buffer.getChannelData(0);
+            
+            for (let i = 0; i < data.length; i++) {
+                const t = i / sampleRate;
+                const envelope = Math.max(0, 1 - t/duration);
+                const freq = 150;
+                const wobble = Math.sin(t * 3 * Math.PI * 2) * 20;
+                data[i] = Math.sin(t * (freq + wobble) * Math.PI * 2) * envelope * 0.4;
+            }
+            
+            return buffer;
+        }
+
+        function initAudio() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Create all sounds
+            sounds.laugh = createLaughSound(audioContext);
+            sounds.applause = createApplauseSound(audioContext);
+            sounds.aww = createAwwSound(audioContext);
+            sounds.ooh = createOohSound(audioContext);
+            sounds.gasp = createGaspSound(audioContext);
+            sounds.boo = createBooSound(audioContext);
+        }
+
+        function playSound() {
+            if (!audioContext) initAudio();
+            
+            const buffer = sounds[selectedSound];
+            if (!buffer) return;
+            
+            const source = audioContext.createBufferSource();
+            const gainNode = audioContext.createGain();
+            
+            source.buffer = buffer;
+            gainNode.gain.value = volumeSlider.value / 100;
+            
+            source.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            source.start(0);
+            
+            laughCount++;
+            laughCountEl.textContent = laughCount;
+            
+            // Visual feedback
+            statusEl.className = 'status laughing';
+            statusEl.textContent = getReaction();
+            
+            setTimeout(() => {
+                if (isListening) {
+                    statusEl.className = 'status listening';
+                    statusEl.textContent = '🎤 Listening...';
+                }
+            }, 1500);
+        }
+
+        function getReaction() {
+            const reactions = {
+                laugh: ['😂 HA HA HA!', '🤣 LOL!', '😆 HAHAHA!'],
+                applause: ['👏 AMAZING!', '👏 BRAVO!', '👏 CLAP CLAP!'],
+                aww: ['🥹 AWWW!', '💕 SO CUTE!', '🥰 ADORABLE!'],
+                ooh: ['😮 OOOH!', '✨ WOW!', '😲 WHOA!'],
+                gasp: ['😱 *GASP*', '😨 OH NO!', '🫢 OMG!'],
+                boo: ['👎 BOOO!', '😒 LAME!', '👻 BOO!']
+            };
+            const options = reactions[selectedSound] || reactions.laugh;
+            return options[Math.floor(Math.random() * options.length)];
+        }
+
+        // Sound button selection
+        document.querySelectorAll('.sound-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.sound-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                selectedSound = btn.dataset.sound;
+            });
+        });
+
+        // Manual play
+        manualBtn.addEventListener('click', playSound);
+
+        // Start/stop listening
+        startBtn.addEventListener('click', async () => {
+            if (!isListening) {
+                try {
+                    if (!audioContext) initAudio();
+                    
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    const source = audioContext.createMediaStreamSource(stream);
+                    const analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 256;
+                    source.connect(analyser);
+                    
+                    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                    
+                    isListening = true;
+                    startBtn.textContent = '⏹️ Stop';
+                    startBtn.className = 'start-btn stop';
+                    statusEl.className = 'status listening';
+                    statusEl.textContent = '🎤 Listening...';
+                    
+                    function checkAudio() {
+                        if (!isListening) return;
+                        
+                        analyser.getByteFrequencyData(dataArray);
+                        const volume = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+                        
+                        // Visual feedback
+                        if (volume > 30) {
+                            micIcon.classList.add('active');
+                            volumeRing.classList.add('active');
+                            
+                            // Speaking detected - clear silence timer
+                            if (silenceTimer) {
+                                clearTimeout(silenceTimer);
+                                silenceTimer = null;
+                            }
+                            statusEl.className = 'status listening';
+                            statusEl.textContent = '🎤 Listening...';
+                        } else {
+                            micIcon.classList.remove('active');
+                            volumeRing.classList.remove('active');
+                            
+                            // Silence detected - start timer
+                            if (!silenceTimer && statusEl.className !== 'status laughing') {
+                                statusEl.className = 'status silent';
+                                statusEl.textContent = '⏳ Waiting for pause...';
+                                
+                                silenceTimer = setTimeout(() => {
+                                    if (isListening) {
+                                        playSound();
+                                    }
+                                    silenceTimer = null;
+                                }, parseInt(delaySelect.value));
+                            }
+                        }
+                        
+                        requestAnimationFrame(checkAudio);
+                    }
+                    
+                    checkAudio();
+                    
+                } catch (err) {
+                    alert('Microphone access denied. Please allow microphone access to use this feature.');
+                }
+            } else {
+                isListening = false;
+                startBtn.textContent = '🎬 Start Recording';
+                startBtn.className = 'start-btn start';
+                statusEl.className = 'status off';
+                statusEl.textContent = 'Click Start to Begin';
+                micIcon.classList.remove('active');
+                volumeRing.classList.remove('active');
+                
+                if (silenceTimer) {
+                    clearTimeout(silenceTimer);
+                    silenceTimer = null;
+                }
+            }
+        });
+    </script>
+</body>
+</html>
