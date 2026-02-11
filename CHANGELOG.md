@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0] - 2026-02-11
+
+### Changed
+- **Replaced synthesized sounds with real audio clips** from Mixkit (free, royalty-free)
+- Added /sounds folder with 6 MP3 files:
+  - laugh.mp3 - Crowd laughter
+  - applause.mp3 - Audience applause
+  - aww.mp3 - Crowd aww reaction
+  - ooh.mp3 - Crowd ooh reaction
+  - gasp.mp3 - Dramatic gasp
+  - boo.mp3 - Crowd booing
+- Added loading indicator for audio files
+- Improved audio playback (using HTML5 Audio instead of Web Audio synthesis)
+
 ## [1.0.0] - 2026-02-11
 
 ### Added

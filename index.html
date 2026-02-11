@@ -243,6 +243,13 @@
             transform: scale(1.05);
         }
 
+        /* Loading indicator */
+        .loading-sounds {
+            font-size: 0.85rem;
+            color: #888;
+            margin-top: 10px;
+        }
+
         footer {
             margin-top: 30px;
             color: rgba(255,255,255,0.7);
@@ -271,7 +278,7 @@
 
             <div class="settings">
                 <div class="setting-row">
-                    <span class="setting-label">Pause before laugh:</span>
+                    <span class="setting-label">Pause before sound:</span>
                     <div class="setting-control">
                         <select id="delay-select">
                             <option value="500">0.5 sec</option>
@@ -307,8 +314,10 @@
             </button>
 
             <div class="laugh-count">
-                Laughs played: <strong id="laugh-count">0</strong>
+                Sounds played: <strong id="laugh-count">0</strong>
             </div>
+            
+            <div class="loading-sounds" id="loading-sounds">Loading sounds...</div>
         </div>
     </div>
 
@@ -316,14 +325,33 @@
         Made with 😂 by Nero | Works best in Chrome
     </footer>
 
+    <!-- Preload audio files -->
+    <audio id="audio-laugh" preload="auto" src="sounds/laugh.mp3"></audio>
+    <audio id="audio-applause" preload="auto" src="sounds/applause.mp3"></audio>
+    <audio id="audio-aww" preload="auto" src="sounds/aww.mp3"></audio>
+    <audio id="audio-ooh" preload="auto" src="sounds/ooh.mp3"></audio>
+    <audio id="audio-gasp" preload="auto" src="sounds/gasp.mp3"></audio>
+    <audio id="audio-boo" preload="auto" src="sounds/boo.mp3"></audio>
+
     <script>
-        // Audio context and sounds
+        // Audio elements
+        const sounds = {
+            laugh: document.getElementById('audio-laugh'),
+            applause: document.getElementById('audio-applause'),
+            aww: document.getElementById('audio-aww'),
+            ooh: document.getElementById('audio-ooh'),
+            gasp: document.getElementById('audio-gasp'),
+            boo: document.getElementById('audio-boo')
+        };
+
+        // State
         let audioContext;
         let isListening = false;
         let silenceTimer = null;
-        let laughCount = 0;
+        let soundCount = 0;
         let selectedSound = 'laugh';
 
+        // DOM elements
         const statusEl = document.getElementById('status');
         const startBtn = document.getElementById('start-btn');
         const micIcon = document.getElementById('mic-icon');
@@ -332,175 +360,65 @@
         const volumeSlider = document.getElementById('volume');
         const laughCountEl = document.getElementById('laugh-count');
         const manualBtn = document.getElementById('manual-btn');
+        const loadingEl = document.getElementById('loading-sounds');
 
-        // Sound URLs (using freesound.org / Web Audio synthesis)
-        // In production, you'd host these yourself
-        const sounds = {
-            laugh: null,
-            applause: null,
-            aww: null,
-            ooh: null,
-            gasp: null,
-            boo: null
+        // Check when sounds are loaded
+        let loadedCount = 0;
+        Object.values(sounds).forEach(audio => {
+            audio.addEventListener('canplaythrough', () => {
+                loadedCount++;
+                if (loadedCount >= 6) {
+                    loadingEl.textContent = '✅ All sounds loaded!';
+                    setTimeout(() => loadingEl.style.display = 'none', 2000);
+                }
+            });
+            audio.addEventListener('error', () => {
+                loadingEl.textContent = '⚠️ Some sounds failed to load';
+            });
+        });
+
+        // Reactions for each sound type
+        const reactions = {
+            laugh: ['😂 HA HA HA!', '🤣 LOL!', '😆 HAHAHA!', '😂 BAHAHA!'],
+            applause: ['👏 AMAZING!', '👏 BRAVO!', '👏 CLAP CLAP!', '👏 WOOO!'],
+            aww: ['🥹 AWWW!', '💕 SO CUTE!', '🥰 ADORABLE!', '🥹 PRECIOUS!'],
+            ooh: ['😮 OOOH!', '✨ WOW!', '😲 WHOA!', '🤩 AMAZING!'],
+            gasp: ['😱 *GASP*', '😨 OH NO!', '🫢 OMG!', '😱 WHAT?!'],
+            boo: ['👎 BOOO!', '😒 LAME!', '👻 BOO!', '👎 NOT COOL!']
         };
 
-        // Generate synthetic sounds since we can't load external audio easily
-        function createLaughSound(ctx) {
-            const duration = 2;
-            const sampleRate = ctx.sampleRate;
-            const buffer = ctx.createBuffer(1, duration * sampleRate, sampleRate);
-            const data = buffer.getChannelData(0);
-            
-            // Generate "ha ha ha" rhythm
-            for (let i = 0; i < data.length; i++) {
-                const t = i / sampleRate;
-                const haFreq = 3; // 3 "ha"s per second
-                const envelope = Math.sin(t * haFreq * Math.PI) * Math.max(0, 1 - t/duration);
-                const noise = (Math.random() * 2 - 1) * 0.3;
-                const tone = Math.sin(t * 400 * Math.PI * 2) * 0.2;
-                data[i] = (noise + tone) * envelope * envelope;
-            }
-            
-            return buffer;
-        }
-
-        function createApplauseSound(ctx) {
-            const duration = 3;
-            const sampleRate = ctx.sampleRate;
-            const buffer = ctx.createBuffer(1, duration * sampleRate, sampleRate);
-            const data = buffer.getChannelData(0);
-            
-            for (let i = 0; i < data.length; i++) {
-                const t = i / sampleRate;
-                const envelope = Math.min(1, t * 3) * Math.max(0, 1 - t/duration);
-                const noise = (Math.random() * 2 - 1);
-                // Filter-like effect
-                data[i] = noise * envelope * 0.4;
-            }
-            
-            return buffer;
-        }
-
-        function createAwwSound(ctx) {
-            const duration = 1.5;
-            const sampleRate = ctx.sampleRate;
-            const buffer = ctx.createBuffer(1, duration * sampleRate, sampleRate);
-            const data = buffer.getChannelData(0);
-            
-            for (let i = 0; i < data.length; i++) {
-                const t = i / sampleRate;
-                const envelope = Math.max(0, 1 - t/duration);
-                const freq = 300 + Math.sin(t * 2) * 50; // Slight wobble
-                data[i] = Math.sin(t * freq * Math.PI * 2) * envelope * 0.3;
-            }
-            
-            return buffer;
-        }
-
-        function createOohSound(ctx) {
-            const duration = 1.5;
-            const sampleRate = ctx.sampleRate;
-            const buffer = ctx.createBuffer(1, duration * sampleRate, sampleRate);
-            const data = buffer.getChannelData(0);
-            
-            for (let i = 0; i < data.length; i++) {
-                const t = i / sampleRate;
-                const envelope = Math.max(0, 1 - t/duration);
-                const freq = 200 + t * 200; // Rising pitch
-                data[i] = Math.sin(t * freq * Math.PI * 2) * envelope * 0.3;
-            }
-            
-            return buffer;
-        }
-
-        function createGaspSound(ctx) {
-            const duration = 0.8;
-            const sampleRate = ctx.sampleRate;
-            const buffer = ctx.createBuffer(1, duration * sampleRate, sampleRate);
-            const data = buffer.getChannelData(0);
-            
-            for (let i = 0; i < data.length; i++) {
-                const t = i / sampleRate;
-                const envelope = Math.exp(-t * 5);
-                const noise = (Math.random() * 2 - 1);
-                data[i] = noise * envelope * 0.5;
-            }
-            
-            return buffer;
-        }
-
-        function createBooSound(ctx) {
-            const duration = 2;
-            const sampleRate = ctx.sampleRate;
-            const buffer = ctx.createBuffer(1, duration * sampleRate, sampleRate);
-            const data = buffer.getChannelData(0);
-            
-            for (let i = 0; i < data.length; i++) {
-                const t = i / sampleRate;
-                const envelope = Math.max(0, 1 - t/duration);
-                const freq = 150;
-                const wobble = Math.sin(t * 3 * Math.PI * 2) * 20;
-                data[i] = Math.sin(t * (freq + wobble) * Math.PI * 2) * envelope * 0.4;
-            }
-            
-            return buffer;
-        }
-
-        function initAudio() {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            
-            // Create all sounds
-            sounds.laugh = createLaughSound(audioContext);
-            sounds.applause = createApplauseSound(audioContext);
-            sounds.aww = createAwwSound(audioContext);
-            sounds.ooh = createOohSound(audioContext);
-            sounds.gasp = createGaspSound(audioContext);
-            sounds.boo = createBooSound(audioContext);
+        function getReaction() {
+            const options = reactions[selectedSound] || reactions.laugh;
+            return options[Math.floor(Math.random() * options.length)];
         }
 
         function playSound() {
-            if (!audioContext) initAudio();
+            const audio = sounds[selectedSound];
+            if (!audio) return;
             
-            const buffer = sounds[selectedSound];
-            if (!buffer) return;
+            // Set volume
+            audio.volume = volumeSlider.value / 100;
             
-            const source = audioContext.createBufferSource();
-            const gainNode = audioContext.createGain();
+            // Reset and play
+            audio.currentTime = 0;
+            audio.play().catch(e => console.log('Audio play failed:', e));
             
-            source.buffer = buffer;
-            gainNode.gain.value = volumeSlider.value / 100;
-            
-            source.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            source.start(0);
-            
-            laughCount++;
-            laughCountEl.textContent = laughCount;
+            // Update counter
+            soundCount++;
+            laughCountEl.textContent = soundCount;
             
             // Visual feedback
             statusEl.className = 'status laughing';
             statusEl.textContent = getReaction();
             
+            // Reset status after sound plays or timeout
+            const duration = (audio.duration || 2) * 1000;
             setTimeout(() => {
                 if (isListening) {
                     statusEl.className = 'status listening';
                     statusEl.textContent = '🎤 Listening...';
                 }
-            }, 1500);
-        }
-
-        function getReaction() {
-            const reactions = {
-                laugh: ['😂 HA HA HA!', '🤣 LOL!', '😆 HAHAHA!'],
-                applause: ['👏 AMAZING!', '👏 BRAVO!', '👏 CLAP CLAP!'],
-                aww: ['🥹 AWWW!', '💕 SO CUTE!', '🥰 ADORABLE!'],
-                ooh: ['😮 OOOH!', '✨ WOW!', '😲 WHOA!'],
-                gasp: ['😱 *GASP*', '😨 OH NO!', '🫢 OMG!'],
-                boo: ['👎 BOOO!', '😒 LAME!', '👻 BOO!']
-            };
-            const options = reactions[selectedSound] || reactions.laugh;
-            return options[Math.floor(Math.random() * options.length)];
+            }, Math.min(duration, 2000));
         }
 
         // Sound button selection
@@ -519,7 +437,7 @@
         startBtn.addEventListener('click', async () => {
             if (!isListening) {
                 try {
-                    if (!audioContext) initAudio();
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
                     
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     const source = audioContext.createMediaStreamSource(stream);
@@ -551,8 +469,10 @@
                                 clearTimeout(silenceTimer);
                                 silenceTimer = null;
                             }
-                            statusEl.className = 'status listening';
-                            statusEl.textContent = '🎤 Listening...';
+                            if (statusEl.className !== 'status laughing') {
+                                statusEl.className = 'status listening';
+                                statusEl.textContent = '🎤 Listening...';
+                            }
                         } else {
                             micIcon.classList.remove('active');
                             volumeRing.classList.remove('active');
@@ -578,6 +498,7 @@
                     
                 } catch (err) {
                     alert('Microphone access denied. Please allow microphone access to use this feature.');
+                    console.error(err);
                 }
             } else {
                 isListening = false;
@@ -591,6 +512,10 @@
                 if (silenceTimer) {
                     clearTimeout(silenceTimer);
                     silenceTimer = null;
+                }
+                
+                if (audioContext) {
+                    audioContext.close();
                 }
             }
         });
