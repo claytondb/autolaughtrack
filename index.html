@@ -325,31 +325,31 @@
         Made with 😂 by Nero | Works best in Chrome
     </footer>
 
-    <!-- Preload audio files -->
-    <audio id="audio-laugh" preload="auto" src="sounds/laugh.mp3"></audio>
-    <audio id="audio-applause" preload="auto" src="sounds/applause.mp3"></audio>
-    <audio id="audio-aww" preload="auto" src="sounds/aww.mp3"></audio>
-    <audio id="audio-ooh" preload="auto" src="sounds/ooh.mp3"></audio>
-    <audio id="audio-gasp" preload="auto" src="sounds/gasp.mp3"></audio>
-    <audio id="audio-boo" preload="auto" src="sounds/boo.mp3"></audio>
-
     <script>
-        // Audio elements
-        const sounds = {
-            laugh: document.getElementById('audio-laugh'),
-            applause: document.getElementById('audio-applause'),
-            aww: document.getElementById('audio-aww'),
-            ooh: document.getElementById('audio-ooh'),
-            gasp: document.getElementById('audio-gasp'),
-            boo: document.getElementById('audio-boo')
+        // Audio buffers (loaded via Web Audio API for manipulation)
+        const soundBuffers = {};
+        const soundUrls = {
+            laugh: 'sounds/laugh.mp3',
+            applause: 'sounds/applause.mp3',
+            aww: 'sounds/aww.mp3',
+            ooh: 'sounds/ooh.mp3',
+            gasp: 'sounds/gasp.mp3',
+            boo: 'sounds/boo.mp3'
         };
 
         // State
         let audioContext;
+        let gainNode;
         let isListening = false;
         let silenceTimer = null;
         let soundCount = 0;
         let selectedSound = 'laugh';
+        let activeSources = []; // Track active audio sources for stopping
+
+        // Randomization settings
+        const PITCH_VARIATION = 100;  // ±100 cents (±1 semitone)
+        const SPEED_VARIATION = 0.1;  // ±10% speed
+        const CROSSFADE_DURATION = 0.3; // seconds
 
         // DOM elements
         const statusEl = document.getElementById('status');
@@ -362,20 +362,40 @@
         const manualBtn = document.getElementById('manual-btn');
         const loadingEl = document.getElementById('loading-sounds');
 
-        // Check when sounds are loaded
-        let loadedCount = 0;
-        Object.values(sounds).forEach(audio => {
-            audio.addEventListener('canplaythrough', () => {
-                loadedCount++;
-                if (loadedCount >= 6) {
-                    loadingEl.textContent = '✅ All sounds loaded!';
-                    setTimeout(() => loadingEl.style.display = 'none', 2000);
+        // Initialize audio context and load sounds
+        async function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                gainNode = audioContext.createGain();
+                gainNode.connect(audioContext.destination);
+            }
+            
+            // Resume if suspended (browser autoplay policy)
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
+            
+            // Load all sound buffers
+            let loadedCount = 0;
+            const totalSounds = Object.keys(soundUrls).length;
+            
+            for (const [name, url] of Object.entries(soundUrls)) {
+                if (!soundBuffers[name]) {
+                    try {
+                        const response = await fetch(url);
+                        const arrayBuffer = await response.arrayBuffer();
+                        soundBuffers[name] = await audioContext.decodeAudioData(arrayBuffer);
+                        loadedCount++;
+                        loadingEl.textContent = `Loading sounds... ${loadedCount}/${totalSounds}`;
+                    } catch (e) {
+                        console.error(`Failed to load ${name}:`, e);
+                    }
                 }
-            });
-            audio.addEventListener('error', () => {
-                loadingEl.textContent = '⚠️ Some sounds failed to load';
-            });
-        });
+            }
+            
+            loadingEl.textContent = '✅ All sounds loaded!';
+            setTimeout(() => loadingEl.style.display = 'none', 2000);
+        }
 
         // Reactions for each sound type
         const reactions = {
@@ -392,16 +412,54 @@
             return options[Math.floor(Math.random() * options.length)];
         }
 
-        function playSound() {
-            const audio = sounds[selectedSound];
-            if (!audio) return;
+        // Create a randomized audio source
+        function createRandomizedSource(buffer) {
+            const source = audioContext.createBufferSource();
+            source.buffer = buffer;
             
-            // Set volume
-            audio.volume = volumeSlider.value / 100;
+            // Random pitch shift: ±PITCH_VARIATION cents
+            const pitchShift = (Math.random() - 0.5) * 2 * PITCH_VARIATION;
+            source.detune.value = pitchShift;
             
-            // Reset and play
-            audio.currentTime = 0;
-            audio.play().catch(e => console.log('Audio play failed:', e));
+            // Random speed: 1 ± SPEED_VARIATION
+            const speedMult = 1 + (Math.random() - 0.5) * 2 * SPEED_VARIATION;
+            source.playbackRate.value = speedMult;
+            
+            return source;
+        }
+
+        // Play sound with randomization and optional crossfade looping
+        function playSound(minDuration = null) {
+            const buffer = soundBuffers[selectedSound];
+            if (!buffer || !audioContext) {
+                // Fallback: try to init and retry
+                initAudio().then(() => playSound(minDuration));
+                return;
+            }
+            
+            // Stop any currently playing sounds
+            stopAllSounds();
+            
+            // Set master volume
+            gainNode.gain.value = volumeSlider.value / 100;
+            
+            const bufferDuration = buffer.duration;
+            const targetDuration = minDuration || bufferDuration;
+            
+            if (targetDuration <= bufferDuration) {
+                // Single play with randomization
+                const source = createRandomizedSource(buffer);
+                source.connect(gainNode);
+                source.start(0);
+                activeSources.push(source);
+                
+                source.onended = () => {
+                    activeSources = activeSources.filter(s => s !== source);
+                };
+            } else {
+                // Need to loop with crossfade
+                playWithCrossfade(buffer, targetDuration);
+            }
             
             // Update counter
             soundCount++;
@@ -411,14 +469,78 @@
             statusEl.className = 'status laughing';
             statusEl.textContent = getReaction();
             
-            // Reset status after sound plays or timeout
-            const duration = (audio.duration || 2) * 1000;
+            // Reset status after sound plays
+            const displayDuration = Math.min(targetDuration, 2) * 1000;
             setTimeout(() => {
                 if (isListening) {
                     statusEl.className = 'status listening';
                     statusEl.textContent = '🎤 Listening...';
                 }
-            }, Math.min(duration, 2000));
+            }, displayDuration);
+        }
+
+        // Crossfade looping for extended playback
+        function playWithCrossfade(buffer, totalDuration) {
+            const bufferDuration = buffer.duration;
+            let elapsed = 0;
+            
+            function scheduleNextSegment() {
+                if (elapsed >= totalDuration) return;
+                
+                const source = createRandomizedSource(buffer);
+                const segmentGain = audioContext.createGain();
+                
+                source.connect(segmentGain);
+                segmentGain.connect(gainNode);
+                
+                // Calculate how much of this segment to play
+                const remaining = totalDuration - elapsed;
+                const segmentLength = Math.min(bufferDuration, remaining + CROSSFADE_DURATION);
+                
+                // Fade in (except first segment)
+                if (elapsed > 0) {
+                    segmentGain.gain.setValueAtTime(0, audioContext.currentTime);
+                    segmentGain.gain.linearRampToValueAtTime(1, audioContext.currentTime + CROSSFADE_DURATION);
+                } else {
+                    segmentGain.gain.setValueAtTime(1, audioContext.currentTime);
+                }
+                
+                // Fade out at end (for crossfade into next, or if this is the last)
+                const fadeOutStart = segmentLength - CROSSFADE_DURATION;
+                if (fadeOutStart > 0) {
+                    segmentGain.gain.setValueAtTime(1, audioContext.currentTime + fadeOutStart);
+                    segmentGain.gain.linearRampToValueAtTime(0, audioContext.currentTime + segmentLength);
+                }
+                
+                source.start(0, 0, segmentLength);
+                activeSources.push(source);
+                
+                source.onended = () => {
+                    activeSources = activeSources.filter(s => s !== source);
+                };
+                
+                elapsed += bufferDuration - CROSSFADE_DURATION;
+                
+                // Schedule next segment (start slightly before this one ends for overlap)
+                if (elapsed < totalDuration) {
+                    const nextDelay = (bufferDuration - CROSSFADE_DURATION) * 1000;
+                    setTimeout(scheduleNextSegment, nextDelay);
+                }
+            }
+            
+            scheduleNextSegment();
+        }
+
+        // Stop all currently playing sounds
+        function stopAllSounds() {
+            activeSources.forEach(source => {
+                try {
+                    source.stop();
+                } catch (e) {
+                    // Already stopped
+                }
+            });
+            activeSources = [];
         }
 
         // Sound button selection
@@ -431,19 +553,23 @@
         });
 
         // Manual play
-        manualBtn.addEventListener('click', playSound);
+        manualBtn.addEventListener('click', async () => {
+            await initAudio();
+            playSound();
+        });
 
         // Start/stop listening
         startBtn.addEventListener('click', async () => {
             if (!isListening) {
                 try {
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    // Initialize audio system and load sounds
+                    await initAudio();
                     
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    const source = audioContext.createMediaStreamSource(stream);
+                    const micSource = audioContext.createMediaStreamSource(stream);
                     const analyser = audioContext.createAnalyser();
                     analyser.fftSize = 256;
-                    source.connect(analyser);
+                    micSource.connect(analyser);
                     
                     const dataArray = new Uint8Array(analyser.frequencyBinCount);
                     
@@ -514,9 +640,8 @@
                     silenceTimer = null;
                 }
                 
-                if (audioContext) {
-                    audioContext.close();
-                }
+                // Stop any playing sounds but keep audioContext alive
+                stopAllSounds();
             }
         });
     </script>

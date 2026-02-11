@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.2.0] - 2026-02-11
+
+### Added
+- **Randomized audio playback** to prevent repetitive sound
+  - Random pitch shift: ±100 cents (±1 semitone)
+  - Random playback speed: ±10%
+- **Crossfade looping** for extended playback
+  - Smooth 300ms crossfade between segments
+  - No audible cuts when sound loops
+- Full Web Audio API integration for audio manipulation
+
+### Technical
+- Switched from HTML5 Audio to AudioBufferSourceNode for pitch/speed control
+- Added detune and playbackRate randomization
+- Implemented segment scheduling with gain envelope crossfading
+- Audio context persists between start/stop for faster response
+
 ## [1.1.0] - 2026-02-11
 
 ### Changed
