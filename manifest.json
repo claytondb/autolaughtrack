@@ -1,0 +1,16 @@
+{
+  "name": "Auto Laugh Track",
+  "short_name": "LaughTrack",
+  "description": "Turn your life into a sitcom! Plays laugh tracks automatically when you stop talking.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ff6b6b",
+  "theme_color": "#ff6b6b",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>😂</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
